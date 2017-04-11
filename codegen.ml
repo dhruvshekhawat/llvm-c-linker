@@ -1,8 +1,10 @@
 module L = Llvm
 module A = Ast
-
+module LK=Linker
 module StringMap = Map.Make(String)
 (*added structs - Dhruv Shekhawat - 4 Apr*)
+
+type ext_func={name:string;ret:L.lltype;arg:L.lltype array}
 let translate (globals, functions, structs) =
   let context = L.global_context () in
   let the_module = L.create_module context "GridLang"
@@ -11,7 +13,9 @@ let translate (globals, functions, structs) =
   and i1_t   = L.i1_type   context
   and void_t = L.void_type context in
   let str_t = L.pointer_type i8_t in
-  
+ 
+
+
   (*add all struct names to a hashtable - Dhruv Shekhawat - 4 Apr*)
   let struct_types:(string, L.lltype) Hashtbl.t = Hashtbl.create 50 in
   let add_empty_named_struct_types sdecl =
@@ -28,6 +32,22 @@ let translate (globals, functions, structs) =
     | A.StructType s ->  Hashtbl.find struct_types s
     | A.String -> str_t 
 in
+ 
+ let ext_func_lst=[
+    (*NOTICE : the sequence of arg list has to be reverse order of origin C-func !!!*)
+    {name="test"          ;ret=i32_t      ;arg=[|i32_t|]           };
+   
+  ]
+  in
+
+  let build_ext_func map ef=
+    let func_typ=L.var_arg_function_type ef.ret ef.arg in
+    let func_dec=L.declare_function ef.name func_typ the_module in
+      StringMap.add ef.name func_dec map
+  in
+
+  let ext_funcs=List.fold_left build_ext_func StringMap.empty ext_func_lst in
+
     let populate_struct_type sdecl = 
     let struct_t = Hashtbl.find struct_types sdecl.A.sname in (* get struct by sname*)
     let type_list = Array.of_list(List.map (fun(t, _) -> ltype_of_typ t) sdecl.A.sformals) in (*construct list of all datatypes of formals in struct*)
@@ -183,7 +203,7 @@ in
     else 
     L.build_call printf_func [| str_format_str ; (expr builder e) |]
       "printf" builder
-    
+    | A.Call ("test", arg) -> (ext_call "test" arg builder)
     (*
     match e with
     A.Literal i -> 
@@ -209,6 +229,16 @@ in
    let result = (match fdecl.A.typ with A.Void -> ""
                                             | _ -> f ^ "_result") in
          L.build_call fdef (Array.of_list actuals) result builder
+
+    
+   and ext_call f_name arg builder=
+      let arg=List.map (fun a ->  (expr builder a)) arg in
+        let arg=Array.of_list arg in
+          L.build_call (StringMap.find f_name ext_funcs) arg f_name builder
+    and ext_call_alternate f_name arg builder= (* NOTE: Do you need List.rev? *)
+      let arg= (List.rev arg) in
+        let arg=Array.of_list arg in
+        L.build_call (StringMap.find f_name ext_funcs) arg f_name builder
     in
 
     (* Invoke "f builder" if the current block doesn't already
@@ -238,4 +268,5 @@ in
   in
 
   List.iter build_function_body functions;
+  LK.link_bc the_module LK.c_lib_path;
   the_module

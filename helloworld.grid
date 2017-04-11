@@ -1,35 +1,3 @@
-Player good{
-	int x;
-	int y;
-  string s;
-  
-}
-
-Player bad {
-  int x;
-  int y;
-  string s;
-}
-
-Item cross {
-  int x;
-  int y;
-}
-
 void gameloop(){
-
-Player good p1;
-Player good p2;
-Player bad p3;
-Player bad p4;
-Item cross c1;
-Item cross c2;
-c1.x = 100;
-p1.x = 10;
-p1.s = "player1";
-p2.x = 999;
-print(c1.x);
-print(p1.x);
-print(p1.s);
-print(p2.x);
+int a;
 }
